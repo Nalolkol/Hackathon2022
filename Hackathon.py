@@ -10,24 +10,38 @@ import linchackathon as lh
 import pandas as pd
 import numpy as np
 from matplotlib import pyplot as plt
-from matplotlib.finance import candlestick2_ohlc as ohlc
-import matplotlib.ticker as ticker
+#from matplotlib.finance import candlestick2_ohlc as ohlc
+#import matplotlib.ticker as ticker
 from datetime import datetime
 
 lh.init("1c0c7bca-53b8-43d7-aa08-3fa488f20e91")
-#%%
 
+#%% get tickers and data
 tickers = lh.getTickers()
 
-#%% Main code to run everything
+data = pd.DataFrame (lh.getStockHistory('all',90))
 
+#%% PIVOT DATA DVS MAKE NAN AND THINGS
+
+stocks = data.pivot('time','symbol','bidClose')
+print(stocks)
+
+
+#%% plot things
+plt.figure()
+
+for i in range(0,len(tickers)):
+    plt.plot(stocks[tickers])
+
+#%% Main code
 def main():
     while True:
         for ticker in tickers:
             stock = lh.getStockHistory(ticker, 90)
             stock = getmidprices(stock)
-            signal = strategy(stock, ticker)
+            signal = strategy1(stock, ticker)
             execution(ticker,signal)
+
 
 #%% Functions
 
@@ -72,28 +86,29 @@ def execution(ticker, signals, nbrshares):
             print(f"\t> Bought {amount} of {ticker} for {price}")
     else:
         print(f"\t> {ticker} is closed. {datetime.now()}")
+        
+def resample_ohlcv(indata: pd.DataFrame, resolution: str):
+    return indata.resample(resolution).agg({"Open": "first",
+                                            "High": "max",
+                                            "Low": "min",
+                                            "Close": "last",
+                                            "Volume": "sum"}).dropna()
 
-
-def strategy1 (indata:pd.DataFrame, ticker):
-    five = resample_ohlcv(get_midprices(indata), "5 min")
-    if len(quarterly) < 10:
+def strategy1(indata:pd.DataFrame, ticker):
+    five = resample_ohlcv(getmidprices(indata), "5 min")
+    if len(five) < 10:
         print("Not enough data.")
         return None
     
     ema_short = five.Close.rolling(25).ewm(span=25, adjust=False).mean()
     ma_volume_short = five.Close.rolling(25).mean()
-    if ma_short.values[-1]/ma_long.values[-1] > 1.01 and ma_volume_short :
+    if ema_short[-1] < five.Close[-1] and ma_volume_short[-1] < five.Volume[-1]*5:
         return 1
-    elif ma_short.values[-1]/ma_long.values[-1] < 0.99:
+    elif ema_short[-1] > five.Close[-1]:
         return -1
     else:
         return 0
     
-    
-#%% Anlyize data
-
-data = pd.DataFrame (lh.getStockHistory('all',90))
-
 #%% Plot
 
 plt.figure1()
@@ -109,41 +124,5 @@ for i in range(0,len(tickers)):
 
 
 #%%Functions
-
-def downloadData(tickers, days):
-    start = datetime.now()
-
-    if isinstance(tickers, str):
-        tickers = [tickers]
-
-    stocks = {}
-    for ticker in tickers:
-
-        print(f"\t> Loading {ticker}")
-        print(f"\t> Time {lh.getStock(ticker)['time']}")
-
-        stock = pd.DataFrame(lh.getStockHistory(ticker, days))
-        stock.time = pd.to_datetime(stock.time)
-        stocks[ticker] = stock[stock.askVolume > 0].set_index("time")
-
-        print(f"\t> Finished loading {ticker},",
-              f"{days} days of data after {datetime.now()-start}.")
-
-    return stocks
-
-def resample_ohlcv(indata: pd.DataFrame, resolution: str):
-    return indata.resample(resolution).agg({"Open": "first",
-                                            "High": "max",
-                                            "Low": "min",
-                                            "Close": "last",
-                                            "Volume": "sum"}).dropna()
-
-def get_midprices(indata: pd.DataFrame):
-    indata["Open"] = (indata.askOpen + indata.bidOpen) / 2
-    indata["High"] = (indata.askHigh + indata.bidHigh) / 2
-    indata["Low"] = (indata.askLow + indata.bidLow) / 2
-    indata["Close"] = (indata.askClose + indata.bidClose) / 2
-    indata["Volume"] = (indata.askVolume + indata.bidVolume) / 2
-    return indata
 
 
