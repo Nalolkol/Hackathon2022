@@ -26,25 +26,40 @@ data = pd.DataFrame (lh.getStockHistory('all',90))
 stocks = data.pivot('time','symbol','bidClose')
 print(stocks)
 
-
-#%% plot things
-'''plt.figure()
-
-for i in range(0,len(tickers)):
-    plt.plot(stocks[tickers])
-'''
 #%% Main code
+
 def main():
     while True:
         for ticker in tickers:
-            
-            stock = lh.getStockHistory(ticker, 90)
-            stock = getmidprices(stock)
-            signal = strategy1(stock, ticker)
-            execution(ticker,signal)
+            print("Checking stocks")
+            if lh.getStock(ticker)["askVolume"] > 0:
+                stock = downloadData(ticker, 4)
+                stock = getmidprices(stock[ticker])
+                signals = strategy1(stock, ticker)
+                execution(ticker, signals)
+            else:
+                print("market closed")
 
 
 #%% Functions
+
+def downloadData(tickers, days):
+    start = datetime.now()
+
+    if isinstance(tickers, str):
+        tickers = [tickers]
+
+    stocks = {}
+    for ticker in tickers:
+
+        print("Loading" + str(ticker))
+        print("Time" + str(lh.getStock(ticker)['time']))
+
+        stock = pd.DataFrame(lh.getStockHistory(ticker, days))
+        stock.time = pd.to_datetime(stock.time)
+        stocks[ticker] = stock[stock.askVolume > 0].set_index("time")
+
+    return stocks
 
 def getmidprices(indata: pd.DataFrame):
     indata['Open'] = (indata.askOpen + indata.bidOpen)/2
@@ -54,7 +69,7 @@ def getmidprices(indata: pd.DataFrame):
     return indata
 
 def execution(ticker, signals):
-    print("Checking signals for {ticker}: {datetime.now()}")
+    print("Checking signals for" + str(ticker) + str(datetime.now()))
 
     # kolla om marknad öppen
     if lh.getStock(ticker)["askVolume"] > 0:
@@ -72,9 +87,7 @@ def execution(ticker, signals):
             # Kolla säljsignal
             if signals < 0:
                 lh.sellStock(ticker, amount)
-                print("Sold {amount} of {ticker} for",
-                      "{lh.getStock(ticker)['askClose']}")
-                print("Time {lh.getStock(ticker)['time']}")
+                print("Sold" + str(amount) +  "of" + str(ticker))
 
         # köpsignal
         
@@ -87,10 +100,10 @@ def execution(ticker, signals):
             lh.buyStock(ticker, amount)
             lh.placeStoploss(ticker,price*0.95,amount)
             
-            print("Bought {amount} of {ticker} for {price}")
-            print("Set stopploss {amount} of {ticker} for {price*0.95}")
+            print("Bought" + str(amount) + "of" + str(ticker) + "for" + str(price))
+            print("Set stopploss" + str(amount) +  "of" + str(ticker) +  "for" + str(price*0.95) )
     else:
-        print("{ticker} is closed. {datetime.now()}")
+        print(str(ticker) +"is closed")
         
 def resample_ohlcv(indata: pd.DataFrame, resolution: str):
     return indata.resample(resolution).agg({"Open": "first",
